@@ -1,20 +1,65 @@
 pipeline {
     agent any
+    environment {
+        BASE_IMAGE_NAME = 'java-base'
+        APP_IMAGE_NAME = 'java-app'
+
     stages {
+        stage('Declarative: Checkout SCM'){
+            steps{
+                checkout scm
+                }
+            }
         stage('Clone') {
             steps {
                 git 'https://github.com/EglaRCh/HolaMundo.java.git'
             }
         }
-        stage('Build') {
+        stage('Build Imagen Base') {
             steps {
-                sh 'mvn clean install'
+                script {
+                    docker.build("${BASE_IMAGE_NAME}", '-f Dockerfile.base .')
+                    }
+                }
+            }
+        stage('Compilar Aplicación app_java'){
+            steps {
+                script {
+                    //sh 'mkdir -p target'
+                    sh 'javac -d target src/HolaMundo.java'
+                    }
+                }
+            }
+        stage('Empaquetar Aplicación') {
+            steps{
+                script{
+                    sh 'jar cfm target/HolaMundo.jar target/MANIFEST.MF -C target .'
+                    sh 'jar tf target/HolaMundo.jar'
+                    }
+                }
+            }
+        stage('Construir Imagen de la Aplicación') {
+            steps {
+                script {
+                    docker.build("${APP_IMAGE_NAME}", '.')
+                }
+            }
+        }
+
+        stage('Ejecutar la Aplicación') {
+            steps {
+                script {
+                    sh "docker run --rm ${APP_IMAGE_NAME}"
+                    //sh 'java -cp target/HolaMundo.jar HolaMundo'
+                }
             }
         }
     }
     post {
         always {
-            archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+            script {
+                sh 'docker images'
+            }
         }
     }
 }
