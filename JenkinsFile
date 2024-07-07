@@ -1,64 +1,32 @@
 pipeline {
     agent any
-    environment {
-        BASE_IMAGE_NAME = 'java-base'
-        APP_IMAGE_NAME = 'java-app'
 
     stages {
-        stage('Declarative: Checkout SCM'){
-            steps{
-                checkout scm
-                }
-            }
         stage('Clone') {
             steps {
                 git 'https://github.com/EglaRCh/HolaMundo.java.git'
             }
         }
-        stage('Build Imagen Base') {
+        stage('Build') {
             steps {
-                script {
-                    docker.build("${BASE_IMAGE_NAME}", '-f Dockerfile.base .')
-                    }
-                }
-            }
-        stage('Compilar Aplicación app_java'){
-            steps {
-                script {
-                    //sh 'mkdir -p target'
-                    sh 'javac -d target src/HolaMundo.java'
-                    }
-                }
-            }
-        stage('Empaquetar Aplicación') {
-            steps{
-                script{
-                    sh 'jar cfm target/HolaMundo.jar target/MANIFEST.MF -C target .'
-                    sh 'jar tf target/HolaMundo.jar'
-                    }
-                }
-            }
-        stage('Construir Imagen de la Aplicación') {
-            steps {
-                script {
-                    docker.build("${APP_IMAGE_NAME}", '.')
-                }
+                sh 'javac HolaMundo.java'
             }
         }
-
-        stage('Ejecutar la Aplicación') {
+        stage('Package') {
             steps {
-                script {
-                    sh "docker run --rm ${APP_IMAGE_NAME}"
-                    //sh 'java -cp target/HolaMundo.jar HolaMundo'
-                }
+                sh 'jar cfe HolaMundo.jar HolaMundo HolaMundo.class'
+                archiveArtifacts artifacts: 'HolaMundo.jar', fingerprint: true
             }
         }
-    }
-    post {
-        always {
-            script {
-                sh 'docker images'
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def app = docker.build("holamundo-java-app:${env.BUILD_ID}")
+                    docker.withRegistry('', 'dockerhub-credentials') {
+                        app.push("${env.BUILD_ID}")
+                        app.push("latest")
+                    }
+                }
             }
         }
     }
