@@ -1,32 +1,40 @@
 pipeline {
     agent any
-
     stages {
-        stage('Clone') {
+        stage('Checkout') {
             steps {
                 git 'https://github.com/EglaRCh/HolaMundo.java.git'
             }
         }
-        stage('Build') {
-            steps {
-                sh 'javac HolaMundo.java'
-            }
-        }
-        stage('Package') {
-            steps {
-                sh 'jar cfe HolaMundo.jar HolaMundo HolaMundo.class'
-                archiveArtifacts artifacts: 'HolaMundo.jar', fingerprint: true
-            }
-        }
         stage('Build Docker Image') {
             steps {
+                sh 'docker build -t holamundo-java-app .'
+            }
+        }
+        stage('Remove Existing Container') {
+            steps {
                 script {
-                    def app = docker.build("holamundo-java-app:${env.BUILD_ID}")
-                    docker.withRegistry('', 'dockerhub-credentials') {
-                        app.push("${env.BUILD_ID}")
-                        app.push("latest")
+                    def containerId = sh(script: "docker ps -a -q -f name=holamundo-container", returnStdout: true).trim()
+                    if (containerId) {
+                        sh "docker stop ${containerId}"
+                        sh "docker rm ${containerId}"
                     }
                 }
+            }
+        }
+        stage('Run Docker Container') {
+            steps {
+                sh 'docker run --name holamundo-container -d holamundo-java-app'
+            }
+        }
+        stage('Verify Logs') {
+            steps {
+                sh 'docker logs holamundo-container'
+            }
+        }
+        stage('Cleanup Docker Images') {
+            steps {
+                sh 'docker image prune -f'
             }
         }
     }
